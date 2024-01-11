@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Add a GeoJSON line</title>
+    <meta property="og:description" content="Add a GeoJSON line to a map using addSource, then style it using addLayer’s paint properties." />
+    <meta charset='utf-8'>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel='stylesheet' href='https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css' />
+    <script src='https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js'></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <style>
+        h2 {
+          color: #000000; /* Цвет текста */
+          font-size: 38px; /* Размер шрифта */
+          font-family: Calibri; /* Шрифт */
+          text-align: left; /* Выравнивание текста */
+          height: 20px;
+        }
+    </style>
+    <style>
+        button {
+          color: #000000; /* Цвет текста */
+          font-family: Calibri; /* Шрифт */
+          text-align: left; /* Выравнивание текста */
+          background-color: rgba(255, 255, 255, 0.9);
+          width: 500px;
+          height: 40px;
+        }
+    </style>
+    <style>
+        body { margin: 0; padding: 0; }
+        html, body, #map { height: 100%; }
+    </style>
+    <style>
+        .context-menu {
+            background-color: rgba(0, 0, 0, 0.0);
+
+            padding: 5px;
+            font-size: 14px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        .context-menu-item {
+            margin-bottom: 5px;
+        }
+        .context-menu-item:hover {
+            background-color: #f4f4f4;
+            cursor: pointer;
+        }
+    </style>
+    <style>
+        #addressSearch {
+            position: absolute;
+            top: 0px;
+            left: 10px;
+            z-index: 1000;
+            height: 50px;
+        }
+    </style>
+    <style>
+        #suggestionList {
+            position: absolute;
+            top: 67px;
+            left: 145px;
+            z-index: 1000;
+        }
+    </style>
+    <style>
+        #suggestionList2 {
+            position: absolute;
+            top: 87px;
+            left: 145px;
+            z-index: 1000;
+        }
+    </style>
+    <style>
+        #searchBtn {
+            cursor: pointer;
+            color: #000000; /* Цвет текста */
+            font-family: Calibri; /* Шрифт */
+            font-size: 18px;
+            text-align: center; /* Выравнивание текста */
+            background-color: rgba(235, 245, 255, 0.9);
+            width: 183px;
+            height: 40px;
+            }
+    </style>
+    <style>
+        #addressInput {
+            color: #000000; /* Цвет текста */
+            font-family: Calibri; /* Шрифт */
+            font-size: 18px;
+            text-align: left; /* Выравнивание текста */
+            background-color: rgba(255, 255, 255, 0.7);
+            width: 175px;
+            height: 30px;
+        }
+        #addressInput2 {
+            color: #000000; /* Цвет текста */
+            font-family: Calibri; /* Шрифт */
+            font-size: 18px;
+            text-align: left; /* Выравнивание текста */
+            background-color: rgba(255, 255, 255, 0.7);
+            width: 175px;
+            height: 30px;
+        }
+    </style>
+</head>
+<body>
+<div id="map"></div>
+<div id="addressSearch">
+    <h2>SilkRoute</h2>
+    <form id="searchForm">
+        <input type="text" id="addressInput" name="address" autocomplete="off" placeholder="Откуда?" oninput="getSuggestions()">
+        <ul id="suggestionList"></ul>
+    </form>
+    <form id="searchForm2">
+        <input type="text" id="addressInput2" name="address2" autocomplete="off" placeholder="Куда?" oninput="getSuggestions2()">
+        <ul id="suggestionList2"></ul>
+    </form>
+    <button type="submit" id="searchBtn">Подтвердить</button>
+</div>
+<script>
+    //  Создание объекта карты.
+    const map = new maplibregl.Map({
+        container: 'map',
+        style:
+            'https://api.maptiler.com/maps/streets/style.json?key=get_your_own_OpIi9ZULNHzrESv6T2vL',
+        center: [37.62211784768979, 55.750674755027056],
+        zoom: 10
+    });
+
+    //  Первоначальная настройка карты.
+    map.on('load', () => {
+        map.addSource('route', {
+            'type': 'geojson',
+            'data': {
+                'type': 'Feature',
+                'properties': {},
+                'geometry': {
+                    'type': 'LineString',
+                    'coordinates': [
+                        {{cr|safe}}
+                    ]
+                }
+            }
+        });
+        map.addLayer({
+            'id': 'route',
+            'type': 'line',
+            'source': 'route',
+            'layout': {
+                'line-join': 'round',
+                'line-cap': 'round'
+            },
+            'paint': {
+                'line-color': '#008080',
+                'line-width': 8
+            }
+        });
+        map.getCanvas().style.cursor = 'grab';
+
+        return false;
+    });
+
+    //  Обработчик при нажатии на карту мышкой.
+    map.on('click', (e) => {
+        if (contextMenu != null)
+        { contextMenu.remove(); }
+        map.getCanvas().style.cursor = 'grab';
+        document.getElementById('suggestionList').style.display = 'none';
+        document.getElementById('suggestionList2').style.display = 'none';
+
+        return false;
+    });
+
+    //  Обновление координат.
+    var source = new EventSource('/updates');
+    source.onmessage = function(event) {
+        var new_coords = JSON.parse("[" + event.data + "]");
+        const bounds = [new_coords[0], new_coords[new_coords.length-1]];
+
+        var new_data = {
+            'type': 'Feature',
+            'properties': {},
+            'geometry': {
+                'type': 'LineString',
+                'coordinates': new_coords
+            }
+        }
+        map.getSource('route').setData(new_data);
+
+        //  Анимация перемещения карты.
+        map.fitBounds(bounds,{ padding: {top: 50, bottom: 50, left: 200, right: 50}, maxZoom: 15 , essential: true});
+
+        return false;
+    };
+
+    //  Обработчик нажатия правой кнопки мыши для вызова контекстного меню.
+    var contextMenu = null;
+    map.on('contextmenu', function (e) {
+        if (contextMenu != null)
+        {
+            contextMenu.remove();
+        }
+        map.getCanvas().style.cursor = 'pointer';
+        contextMenu = new maplibregl.Popup({
+            closeButton: false,
+            closeOnClick: false,
+            anchor: 'top-left'
+        })
+            .setLngLat(e.lngLat)
+            .setHTML('<div class="context-menu"><div class="context-menu-item" id="menu-item-1">Маршрут отсюда...</div><div class="context-menu-item" id="menu-item-2">Маршрут сюда...</div></div>')
+            .addTo(map);
+
+        //  Кнопка "Маршрут отсюда".
+        document.getElementById('menu-item-1').onclick = function() {
+            var value = e.lngLat.wrap().toString();
+            $.ajax({
+                url: '/from',
+                type: 'POST',
+                data: { 'data': value },
+
+                error: function(error) {
+                    console.log(error);
+                }
+            });
+            contextMenu.remove();
+
+            return false;
+        };
+
+        //  Кнопка "Маршрут сюда".
+        document.getElementById('menu-item-2').onclick = function() {
+            var value = e.lngLat.wrap().toString();
+            $.ajax({
+                url: '/to',
+                type: 'POST',
+                data: { 'data': value },
+                error: function(error) {
+                    console.log(error);
+                }
+            });
+            contextMenu.remove();
+            return false;
+        };
+        map.getCanvas().style.cursor = 'grab';
+    });
+
+    //  Кнопка поиска ("Подтвердить").
+    document.getElementById('searchBtn').onclick = function() {
+        document.getElementById('suggestionList').style.display = 'none';
+        document.getElementById('suggestionList2').style.display = 'none';
+
+        var start = document.getElementById('addressInput').value;
+        var end = document.getElementById('addressInput2').value;
+
+        //  Отправка адреса.
+        $.ajax({
+                url: '/search',
+                type: 'POST',
+                data: { 'start': start, 'end': end },
+
+                error: function(error) {
+                    console.log(error);
+                }
+            });
+
+        return false;
+    };
+
+    //  Подсказки при поиске.
+    function getSuggestions() {
+        var input = document.getElementById('addressInput').value;
+        if (input.length > 2)
+        {
+            fetch('/search_suggestions?query=' + input)
+                .then(response => response.json())
+                .then(data => {
+                    var suggestionList = document.getElementById('suggestionList');
+                    suggestionList.innerHTML = '';
+                    data.forEach(suggestion => {
+                        var item = document.createElement('button');
+                        item.appendChild(document.createTextNode(suggestion));
+                        item.onclick = function() {
+                            document.getElementById('suggestionList').style.display = 'none';
+                            document.getElementById('addressInput').value = item.innerText;
+                            return false;
+                        }
+                        suggestionList.appendChild(item);
+                });
+            });
+        }
+        return false;
+    }
+
+    //  Подсказки при поиске.
+    function getSuggestions2() {
+        var input = document.getElementById('addressInput2').value;
+        if (input.length > 2)
+        {
+            fetch('/search_suggestions?query=' + input)
+                .then(response => response.json())
+                .then(data => {
+                    var suggestionList = document.getElementById('suggestionList2');
+                    suggestionList.innerHTML = '';
+                    data.forEach(suggestion => {
+                        var item = document.createElement('button');
+                        item.appendChild(document.createTextNode(suggestion));
+                        item.onclick = function() {
+                            document.getElementById('suggestionList2').style.display = 'none';
+                            document.getElementById('addressInput2').value = item.innerText;
+                            return false;
+                        }
+                        suggestionList.appendChild(item);
+                });
+            });
+        }
+        return false;
+    }
+
+    //  Обработчики при нажатии на текстовые поля для поиска адресов.
+    document.getElementById('addressInput').onclick = function() {
+        document.getElementById('suggestionList').style.display = 'block'
+        document.getElementById('suggestionList2').style.display = 'none';
+        return false;
+    };
+    document.getElementById('addressInput2').onclick = function() {
+        document.getElementById('suggestionList2').style.display = 'block'
+        document.getElementById('suggestionList').style.display = 'none';
+        return false;
+    };
+
+</script>
+</body>
+</html>
